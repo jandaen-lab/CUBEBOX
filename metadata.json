@@ -1,0 +1,6 @@
+{
+  "name": "CUBEBOX",
+  "description": "프라이빗 OTT룸과 보드게임, 그리고 다양한 여가 콘텐츠가 함께하는 머무는 시간이 즐거워지는 복합 문화 공간 CUBEBOX의 공식 랜딩페이지 및 가맹 가이드.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

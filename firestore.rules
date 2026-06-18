@@ -1,0 +1,12 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    match /counsels/{document} {
+      // Anyone can submit a counseling application
+      allow create: if true;
+      
+      // Only authenticated users (e.g. admins) can read, update, or delete applications
+      allow read, update, delete: if request.auth != null;
+    }
+  }
+}
