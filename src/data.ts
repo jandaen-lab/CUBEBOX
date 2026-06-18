@@ -1,4 +1,5 @@
 import { FAQItem, GalleryItem } from './types';
+import ottRoomPrivate from './assets/images/ott_room_private_1781772390393.jpg';
 
 export const whyCubeboxList = [
   {
@@ -106,7 +107,7 @@ export const galleryItemList: GalleryItem[] = [
     id: "ott",
     title: "프라이빗 OTT 관람룸",
     description: "고화질 대형 TV와 프리미엄 사운드바, 아늑한 소파가 구비된 프라이빗 룸에서 나만의 프라이빗 시네마를 경험하세요.",
-    imageUrl: "https://images.unsplash.com/photo-1595769816263-9b910be24d5f?auto=format&fit=crop&q=80&w=600",
+    imageUrl: ottRoomPrivate,
     tag: "OTT WATCH ROOM"
   },
   {
