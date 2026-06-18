@@ -78,6 +78,19 @@ export default function AdminPanel() {
     return () => unsubscribe();
   }, []);
 
+  // Listen for local lead additions to refresh layout dynamically
+  useEffect(() => {
+    const handleLocalLeadAdded = () => {
+      if (isDemoMode) {
+        loadSampleData();
+      }
+    };
+    window.addEventListener('local_lead_added', handleLocalLeadAdded);
+    return () => {
+      window.removeEventListener('local_lead_added', handleLocalLeadAdded);
+    };
+  }, [isDemoMode]);
+
   // Sync real-time Firestore data when authenticated or in Demo mode
   useEffect(() => {
     if (!isAdmin && !isDemoMode) {
@@ -98,15 +111,24 @@ export default function AdminPanel() {
             ...docSnap.data()
           } as CounselApplication);
         });
-        setApplications(list);
+        
+        // Merge with local storage backup values that are not already present in the Firestore list
+        try {
+          const localBackup = JSON.parse(localStorage.getItem('cubebox_local_backup') || '[]');
+          const uniqueLocal = localBackup.filter((localApp: any) => 
+            !list.some(dbApp => dbApp.name === localApp.name && dbApp.phone === localApp.phone)
+          );
+          setApplications([...uniqueLocal, ...list]);
+        } catch (e) {
+          setApplications(list);
+        }
         setLoading(false);
       }, (err) => {
         console.error("Firestore loading error: ", err);
         setError("Firestore database connection failed. Rules may require active authentication.");
         setLoading(false);
         
-        // Populate fallback sample data in state so user doesn't see a blank page
-        // if Firebase database gets restricted or rules are building.
+        // Populate fallback sample data plus local registration items
         loadSampleData();
       });
 
@@ -179,6 +201,21 @@ export default function AdminPanel() {
         preferredDateTime: "연락 시 조율"
       }
     ];
+
+    try {
+      const localBackup = JSON.parse(localStorage.getItem('cubebox_local_backup') || '[]');
+      if (localBackup && localBackup.length > 0) {
+        // Exclude duplicate names if any are already in mock list
+        const filteredLocal = localBackup.filter((localItem: any) => 
+          !sample.some(sampleItem => sampleItem.phone === localItem.phone && sampleItem.name === localItem.name)
+        );
+        setApplications([...filteredLocal, ...sample]);
+        return;
+      }
+    } catch (e) {
+      console.warn("Failed to load local backup from storage:", e);
+    }
+
     setApplications(sample);
   };
 
@@ -215,23 +252,35 @@ export default function AdminPanel() {
     }
   };
 
-  // Update Status in Firestore (or local state in demo mode)
+  // Update Status in Firestore (or local state + local storage in demo mode)
   const handleUpdateStatus = async (id: string, newStatus: ApplicationStatus) => {
-    if (isDemoMode) {
-      // Direct state update for mockup
-      setApplications(prev => 
-        prev.map(app => app.id === id ? { ...app, status: newStatus } : app)
-      );
-      return;
+    // Direct state update for mockup
+    setApplications(prev => 
+      prev.map(app => app.id === id ? { ...app, status: newStatus } : app)
+    );
+
+    // Update in localStorage if it is a local backup
+    if (id.startsWith('local-')) {
+      try {
+        const localBackup = JSON.parse(localStorage.getItem('cubebox_local_backup') || '[]');
+        const updatedBackup = localBackup.map((app: any) => 
+          app.id === id ? { ...app, status: newStatus } : app
+        );
+        localStorage.setItem('cubebox_local_backup', JSON.stringify(updatedBackup));
+      } catch (e) {
+        console.warn("localStorage status update failed:", e);
+      }
     }
 
-    try {
-      const docRef = doc(db, 'counsels', id);
-      await updateDoc(docRef, { status: newStatus });
-    } catch (err) {
-      console.error("Firestore status update failed: ", err);
-      // Apply status and notify
-      alert("데이터를 수정할 권한이 없거나 네트워크 오류가 발생했습니다.");
+    if (!isDemoMode && !id.startsWith('local-')) {
+      try {
+        const docRef = doc(db, 'counsels', id);
+        await updateDoc(docRef, { status: newStatus });
+      } catch (err) {
+        console.error("Firestore status update failed: ", err);
+        // Apply status and notify
+        alert("데이터를 수정할 권한이 없거나 네트워크 오류가 발생했습니다.");
+      }
     }
   };
 
@@ -239,17 +288,28 @@ export default function AdminPanel() {
   const handleDeleteApplication = async (id: string) => {
     if (!window.confirm("정말 이 상담 신청 내역을 삭제하시겠습니까?")) return;
 
-    if (isDemoMode) {
-      setApplications(prev => prev.filter(app => app.id !== id));
-      return;
+    // Direct state update for mockup
+    setApplications(prev => prev.filter(app => app.id !== id));
+
+    // Delete from localStorage if it is a local backup
+    if (id.startsWith('local-')) {
+      try {
+        const localBackup = JSON.parse(localStorage.getItem('cubebox_local_backup') || '[]');
+        const updatedBackup = localBackup.filter((app: any) => app.id !== id);
+        localStorage.setItem('cubebox_local_backup', JSON.stringify(updatedBackup));
+      } catch (e) {
+        console.warn("localStorage delete failed:", e);
+      }
     }
 
-    try {
-      const docRef = doc(db, 'counsels', id);
-      await deleteDoc(docRef);
-    } catch (err) {
-      console.error("Firestore delete failed: ", err);
-      alert("삭제 권한이 없습니다.");
+    if (!isDemoMode && !id.startsWith('local-')) {
+      try {
+        const docRef = doc(db, 'counsels', id);
+        await deleteDoc(docRef);
+      } catch (err) {
+        console.error("Firestore delete failed: ", err);
+        alert("삭제 권한이 없습니다.");
+      }
     }
   };
 
@@ -314,27 +374,42 @@ export default function AdminPanel() {
 
   // Seed sample database item directly to trigger Firestore connectivity
   const handleSeedSample = async () => {
-    try {
-      const formattedDate = new Date().toLocaleDateString('ko-KR', {
-        year: 'numeric',
-        month: '2-digit',
-        day: '2-digit'
-      }).replace(/\s/g, '').slice(0, -1); // 2026.06.18 format
+    const formattedDate = new Date().toLocaleDateString('ko-KR', {
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit'
+    }).replace(/\s/g, '').slice(0, -1); // 2026.06.18 format
 
-      await addDoc(collection(db, 'counsels'), {
-        createdAt: Date.now(),
-        dateString: formattedDate,
-        name: "테스트 점주",
-        phone: "010-9999-8888",
-        region: "서울 마포구",
-        timing: "즉시 창업",
-        investment: "1.5억 ~ 2억",
-        content: "파이어베이스 실시간 데이터 연동 테스트입니다.",
-        agreePrivacy: true,
-        status: "신규",
-        preferredDateTime: "2026-06-23 오후 02:00 - 03:00"
-      });
-      alert("Firestore에 샘플 데이터를 등록했습니다. 실시간 연동을 확인하세요!");
+    const seedPayload = {
+      createdAt: Date.now(),
+      dateString: formattedDate,
+      name: "테스트 점주",
+      phone: "010-9999-8888",
+      region: "서울 마포구",
+      timing: "즉시 창업",
+      investment: "1.5억 ~ 2억",
+      content: "파이어베이스 실시간 데이터 연동 테스트입니다.",
+      agreePrivacy: true,
+      status: "신규" as ApplicationStatus,
+      preferredDateTime: "2026-06-23 오후 02:00 - 03:00"
+    };
+
+    if (isDemoMode) {
+      try {
+        const localBackup = JSON.parse(localStorage.getItem('cubebox_local_backup') || '[]');
+        localBackup.unshift({ ...seedPayload, id: `local-${Date.now()}` });
+        localStorage.setItem('cubebox_local_backup', JSON.stringify(localBackup));
+        loadSampleData();
+        alert("로컬 테스트용 가맹상담 신규 내역이 정상 등록되어 화면에 직접 추가되었습니다!");
+      } catch (err) {
+        console.error("Local seeding failed: ", err);
+      }
+      return;
+    }
+
+    try {
+      await addDoc(collection(db, 'counsels'), seedPayload);
+      alert("Firestore에 샘플 데이터를 성공적으로 등록했습니다 (실시간 동기화 완료)!");
     } catch (err: any) {
       console.error("Firestore seeding failed: ", err);
       alert("Firestore 업로드 중 보안 규칙 또는 파이어베이스 연결 제한이 발견되었습니다: " + err.message);
@@ -449,16 +524,14 @@ export default function AdminPanel() {
         </div>
 
         <div className="flex items-center gap-2.5 shrink-0 flex-wrap">
-          {!isDemoMode && (
-            <button
-              onClick={handleSeedSample}
-              className="px-4 py-2 bg-white hover:bg-brand-gray border-2 border-black text-xs text-brand-black font-bold uppercase tracking-wider rounded-none transition-all cursor-pointer"
-              title="데이터 흐름을 확인하기 위해 Firestore 인스턴스에 테스트 예시를 한 장 추가 주입합니다."
-            >
-              <AlertCircle className="w-3.5 h-3.5 text-brand-orange inline mr-1" />
-              테스트 주입 (+1)
-            </button>
-          )}
+          <button
+            onClick={handleSeedSample}
+            className="px-4 py-2 bg-white hover:bg-brand-gray border-2 border-black text-xs text-brand-black font-bold uppercase tracking-wider rounded-none transition-all cursor-pointer flex items-center gap-1"
+            title={isDemoMode ? "브라우저 로컬 저장소에 빠른 예시 데이터를 주입하여 리스트에 즉시 노출합니다." : "데이터 흐름을 확인하기 위해 Firestore 인스턴스에 테스트 예시를 한 장 추가 주입합니다."}
+          >
+            <AlertCircle className="w-3.5 h-3.5 text-brand-orange shrink-0" />
+            <span>테스트 주입 (+1)</span>
+          </button>
 
           <button
             onClick={downloadExcel}

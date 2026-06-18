@@ -52,9 +52,9 @@ import {
 // Pictograms mapping for each section
 const whyIcons = [
   Users,      // SPEC 01: 넓은 고객층
-  Tv,         // SPEC 02: 프라이빗 OTT룸
-  Dices,      // SPEC 03: 높은 재방문율
-  RefreshCw,  // SPEC 04: 지속적인 콘텐츠 업데이트
+  Coins,      // SPEC 02: 다양한 수익구조
+  Award,      // SPEC 03: 상권맞춤 점주 자율운영
+  Sparkles,   // SPEC 04: 차별화에 집중하는 공간
 ];
 
 const founderPointIcons = [
@@ -424,6 +424,42 @@ export default function App() {
                     </div>
                   );
                 })}
+              </div>
+
+              {/* Recommendation banner/section */}
+              <div className="mt-20 border-4 border-black bg-[#FFFBF0] p-8 md:p-12 relative overflow-hidden">
+                {/* Accent decoration line */}
+                <div className="absolute top-0 left-0 right-0 h-2 bg-[#FF6B35]"></div>
+                
+                <div className="relative z-10 max-w-4xl mx-auto">
+                  <div className="text-center mb-10">
+                    <span className="text-xs font-black text-[#FF6B35] tracking-widest uppercase bg-white border-2 border-black px-3 py-1 inline-block">RECOMMENDED FOR YOU</span>
+                    <h3 className="text-2xl md:text-3xl font-black text-[#1A1A1A] mt-4">
+                      [ 이런 분들께 <span className="text-[#FF6B35]">추천합니다</span> ]
+                    </h3>
+                    <p className="text-slate-600 text-xs sm:text-sm mt-2 font-bold">고객과 가맹점 모두 행복하게 동반 성장하는 큐브박스 맞춤 플랜</p>
+                  </div>
+
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-6">
+                    {[
+                      { num: "1", text: "카페나 음식점과는 다른 차별화된 창업 아이템을 찾고 계신 분" },
+                      { num: "2", text: "데이트, 모임, 영화 감상 등 다양한 수요를 수용할 수 있는 업종을 원하시는 분" },
+                      { num: "3", text: "고객이 오래 머물고 다시 찾는 공간을 만들고 싶으신 분" },
+                      { num: "4", text: "상권 특성에 맞게 유연하게 매장을 운영하고 싶으신 분" },
+                      { num: "5", text: "본사의 지원은 받되 자율성도 중요하게 생각하시는 분" },
+                      { num: "6", text: "고객과 함께 성장하는 공간을 만들고 싶으신 분" }
+                    ].map((item, idx) => (
+                      <div key={idx} className="flex gap-4 items-start p-4 bg-white/50 hover:bg-white border-2 border-transparent hover:border-black transition-all">
+                        <span className="text-2xl leading-none font-black text-[#FF6B35] tracking-tight font-mono select-none">
+                          0{item.num}
+                        </span>
+                        <p className="text-xs sm:text-sm font-bold text-brand-black leading-relaxed pt-0.5">
+                          {item.text}
+                        </p>
+                      </div>
+                    ))}
+                  </div>
+                </div>
               </div>
 
             </div>
